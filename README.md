@@ -55,14 +55,14 @@ LinkPilot/
 2. Configure PostgreSQL and Redis in `src/main/resources/application.properties`:
    ```properties
    # Database
-   spring.datasource.url=jdbc:postgresql://localhost:5432/linkpilot
+   spring.datasource.url=jdbc:postgresql://localhost:5432/LinkPilot
    spring.datasource.username=postgres
    spring.datasource.password=postgres
    spring.jpa.hibernate.ddl-auto=update
 
    # Redis
-   spring.redis.host=localhost
-   spring.redis.port=6379
+   spring.data.redis.host=localhost
+   spring.data.redis.port=6379
    ```
 
 3. Build and run the backend:
