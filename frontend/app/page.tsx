@@ -1,3 +1,4 @@
+"use client";
 import Link from 'next/link';
 import { useState } from 'react';
 
@@ -13,9 +14,9 @@ export default function Home() {
       const response = await fetch('/api/links', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Type': 'application/json',
         },
-        body: new URLSearchParams({ url }),
+        body: JSON.stringify({ url }),
       });
 
       if (response.ok) {
@@ -78,10 +79,10 @@ export default function Home() {
                 className="flex-1 px-4 py-2 bg-white border border-gray-300 rounded-md focus:outline-none"
               />
               <button
-                onClick(() => {
+                onClick={() => {
                   navigator.clipboard.writeText(shortUrl);
                   alert('Copied to clipboard!');
-                })
+                }}
                 className="px-4 py-2 bg-green-600 text-white font-medium rounded-md hover:!bg-green-700 transition-colors"
               >
                 Copy
@@ -95,4 +96,4 @@ export default function Home() {
         <p>Built with Next.js, Spring Boot, PostgreSQL & Redis</p>
       </footer>
     </main>
-  );
+  );}

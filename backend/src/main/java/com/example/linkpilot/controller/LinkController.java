@@ -16,8 +16,8 @@ public class LinkController {
     private LinkService linkService;
 
     @PostMapping
-    public ResponseEntity<Link> createLink(@RequestParam String url) {
-        Link link = linkService.createLink(url);
+    public ResponseEntity<Link> createLink(@RequestBody UrlRequest request) {
+        Link link = linkService.createLink(request.getUrl());
         return ResponseEntity.ok(link);
     }
 

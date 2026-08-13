@@ -1,3 +1,16 @@
+A short link is a powerful marketing tool when you use it carefully. it is not just a link but a medium between you and your customer and their destination.
+Fast Link Shortening
+
+Transform lengthy URLs into short, memorable links in just seconds. Our service is built for speed and reliability, ensuring your links work flawlessly across social media and anywhere else you need to share.
+
+Powerful Analytics
+
+See detailed metrics on your shortened URLs. Track links by how much traffic comes from specific regions or device types. Better understand your users' journeys when they click on your URLs. Then, optimize your campaigns to get your URLs in front of more of the right people.
+
+QR Code Generator
+
+Bridge the gap between the physical and digital world effortlessly. Generate customizable QR codes for any shortened link, perfect for print materials, product packaging, events, or driving traffic from offline sources.
+
 # LinkPilot - URL Shortener Service
 # Tech Stack:
 # Frontend: Next.js + TypeScript
