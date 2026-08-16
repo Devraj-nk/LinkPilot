@@ -1,7 +1,10 @@
 D:\Projects\LinkPilot\backend\src\main\java\com\example\linkpilot\config\CorsConfig.java
 D:\Projects\LinkPilot\backend\src\main\java\com\example\linkpilot\controller\UrlRequest.java
+D:\Projects\LinkPilot\backend\src\main\java\com\example\linkpilot\model\APIKey.java
 D:\Projects\LinkPilot\backend\src\main\java\com\example\linkpilot\model\Link.java
+D:\Projects\LinkPilot\backend\src\main\java\com\example\linkpilot\model\Campaign.java
 D:\Projects\LinkPilot\backend\src\main\java\com\example\linkpilot\repository\LinkRepository.java
 D:\Projects\LinkPilot\backend\src\main\java\com\example\linkpilot\LinkPilotApplication.java
+D:\Projects\LinkPilot\backend\src\main\java\com\example\linkpilot\model\QRCode.java
 D:\Projects\LinkPilot\backend\src\main\java\com\example\linkpilot\controller\LinkController.java
 D:\Projects\LinkPilot\backend\src\main\java\com\example\linkpilot\service\LinkService.java
