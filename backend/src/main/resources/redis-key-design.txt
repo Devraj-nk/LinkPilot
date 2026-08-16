@@ -1,0 +1,42 @@
+ URL Cache
+
+ Key: link:{short_code}
+Value: original_url
+TTL: 1 hour (configurable based on update frequency)
+Pattern: 
+  - On link creation: SET link:{short_code} {original_url} EXPIRE 3600
+  - On link update/delete: DEL link:{short_code}
+  - On redirect: GET link:{short_code} (fallback to DB if miss)
+
+Rate limitting
+
+Key: rate_limit:{user_id}:{endpoint}
+Value: counter (integer)
+TTL: window size in seconds (e.g., 60 for per-minute limit)
+Pattern: INCR with EXPIRE on first increment
+
+Short code gen
+
+Key: short_code:{counter}
+Value: boolean (true if used)
+Pattern: 
+  - Use Redis INCR to generate sequential numbers
+  - Convert to base62 for short codes
+  - Check if generated code exists before use
+
+Session storage:
+
+Key: session:{session_id}
+Value: serialized user session data
+TTL: 24 hours
+
+Kafka click event schema
+
+{
+  "event_id": "uuid-v4-string",
+  "link_id": "uuid-v4-string",
+  "timestamp": "ISO 8601 timestamp with milliseconds",
+  "ip_address": "string (for enrichment, not storage)",
+  "user_agent": "string",
+  "referrer": "string (optional)"
+}
