@@ -1,4 +1,4 @@
-package com.linkpilot.model;
+package com.example.linkpilot.model;
 
 public enum CampaignStatus {
     ACTIVE,

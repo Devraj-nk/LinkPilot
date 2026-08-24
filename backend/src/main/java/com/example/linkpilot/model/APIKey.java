@@ -1,69 +1,103 @@
 package com.example.linkpilot.model;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import java.time.LocalDateTime;
+import jakarta.persistence.*;
+import java.time.OffsetDateTime;
+import java.util.UUID;
 
 @Entity
+@Table(name = "api_keys")
 public class APIKey {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-    private String key; // The actual API key
-    private String description;
-    private LocalDateTime createdAt;
-    private LocalDateTime expiresAt;
-    private boolean active;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+    @Column(nullable = false, length = 255)
+    private String name;
+
+    @Column(name = "key_hash", nullable = false, unique = true, length = 255)
+    private String keyHash;
+
+    @Column(name = "last_used_at")
+    private OffsetDateTime lastUsedAt;
+
+    @Column(name = "expires_at")
+    private OffsetDateTime expiresAt;
+
+    @Column(name = "revoked_at")
+    private OffsetDateTime revokedAt;
+
+    @Column(name = "created_at", nullable = false)
+    private OffsetDateTime createdAt;
+
+    @PrePersist
+    protected void onCreate() {
+        createdAt = OffsetDateTime.now();
+    }
 
     // Getters and Setters
-    public Long getId() {
+
+    public UUID getId() {
         return id;
     }
 
-    public void setId(Long id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 
-    public String getKey() {
-        return key;
+    public User getUser() {
+        return user;
     }
 
-    public void setKey(String key) {
-        this.key = key;
+    public void setUser(User user) {
+        this.user = user;
     }
 
-    public String getDescription() {
-        return description;
+    public String getName() {
+        return name;
     }
 
-    public void setDescription(String description) {
-        this.description = description;
+    public void setName(String name) {
+        this.name = name;
     }
 
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
+    public String getKeyHash() {
+        return keyHash;
     }
 
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
+    public void setKeyHash(String keyHash) {
+        this.keyHash = keyHash;
     }
 
-    public LocalDateTime getExpiresAt() {
+    public OffsetDateTime getLastUsedAt() {
+        return lastUsedAt;
+    }
+
+    public void setLastUsedAt(OffsetDateTime lastUsedAt) {
+        this.lastUsedAt = lastUsedAt;
+    }
+
+    public OffsetDateTime getExpiresAt() {
         return expiresAt;
     }
 
-    public void setExpiresAt(LocalDateTime expiresAt) {
+    public void setExpiresAt(OffsetDateTime expiresAt) {
         this.expiresAt = expiresAt;
     }
 
-    public boolean isActive() {
-        return active;
+    public OffsetDateTime getRevokedAt() {
+        return revokedAt;
     }
 
-    public void setActive(boolean active) {
-        this.active = active;
+    public void setRevokedAt(OffsetDateTime revokedAt) {
+        this.revokedAt = revokedAt;
+    }
+
+    public OffsetDateTime getCreatedAt() {
+        return createdAt;
     }
 }

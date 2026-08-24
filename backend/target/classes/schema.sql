@@ -1,112 +1,107 @@
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
--- Custom ENUM types
-CREATE TYPE user_role AS ENUM ('USER', 'ADMIN');
-CREATE TYPE campaign_status AS ENUM ('ACTIVE', 'PAUSED', 'ARCHIVED');
-CREATE TYPE link_status AS ENUM ('ACTIVE', 'DISABLED', 'EXPIRED');
-CREATE TYPE qr_format AS ENUM ('PNG', 'SVG', 'PDF');
-CREATE TYPE domain_verification_status AS ENUM ('PENDING', 'VERIFIED', 'FAILED');
+-- SQLite schema. Enforce FK constraints (off by default in SQLite) --
+-- this is also set via the JDBC URL (?foreign_keys=on) for app connections.
+PRAGMA foreign_keys = ON;
 
 -- Users table
-CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    email VARCHAR(255) NOT NULL UNIQUE,
-    password_hash VARCHAR(255) NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    role user_role NOT NULL DEFAULT 'USER',
-    is_verified BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    name TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'USER' CHECK (role IN ('USER', 'ADMIN')),
+    is_verified INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
 -- Refresh tokens table
-CREATE TABLE refresh_tokens (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    token_hash VARCHAR(255) NOT NULL,
-    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    revoked_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    UNIQUE(token_hash)
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    expires_at TEXT NOT NULL,
+    revoked_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
 -- Campaigns table
-CREATE TABLE campaigns (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    name VARCHAR(255) NOT NULL,
+CREATE TABLE IF NOT EXISTS campaigns (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
     description TEXT,
-    status campaign_status NOT NULL DEFAULT 'ACTIVE',
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'PAUSED', 'ARCHIVED')),
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
 -- Links table
-CREATE TABLE links (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    campaign_id UUID REFERENCES campaigns(id) ON DELETE SET NULL,
-    short_code VARCHAR(10) NOT NULL UNIQUE,
+CREATE TABLE IF NOT EXISTS links (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    campaign_id TEXT REFERENCES campaigns(id) ON DELETE SET NULL,
+    short_code TEXT NOT NULL UNIQUE,
     original_url TEXT NOT NULL,
-    title VARCHAR(255),
-    status link_status NOT NULL DEFAULT 'ACTIVE',
-    expires_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    title TEXT,
+    status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'DISABLED', 'EXPIRED')),
+    click_count INTEGER NOT NULL DEFAULT 0,
+    expires_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
 -- QR codes table
-CREATE TABLE qr_codes (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    link_id UUID NOT NULL REFERENCES links(id) ON DELETE CASCADE,
-    format qr_format NOT NULL DEFAULT 'PNG',
-    foreground_color VARCHAR(7) NOT NULL DEFAULT '#000000',
-    background_color VARCHAR(7) NOT NULL DEFAULT '#FFFFFF',
+CREATE TABLE IF NOT EXISTS qr_codes (
+    id TEXT PRIMARY KEY,
+    link_id TEXT NOT NULL REFERENCES links(id) ON DELETE CASCADE,
+    format TEXT NOT NULL DEFAULT 'PNG' CHECK (format IN ('PNG', 'SVG', 'PDF')),
+    foreground_color TEXT NOT NULL DEFAULT '#000000',
+    background_color TEXT NOT NULL DEFAULT '#FFFFFF',
     size INTEGER NOT NULL DEFAULT 256,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
 -- API keys table
-CREATE TABLE api_keys (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    name VARCHAR(255) NOT NULL,
-    key_hash VARCHAR(255) NOT NULL UNIQUE,
-    last_used_at TIMESTAMP WITH TIME ZONE,
-    expires_at TIMESTAMP WITH TIME ZONE,
-    revoked_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS api_keys (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    key_hash TEXT NOT NULL UNIQUE,
+    last_used_at TEXT,
+    expires_at TEXT,
+    revoked_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
 -- Domains table (optional/future)
-CREATE TABLE domains (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    domain VARCHAR(255) NOT NULL UNIQUE,
-    verification_status domain_verification_status NOT NULL DEFAULT 'PENDING',
-    verified_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS domains (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    domain TEXT NOT NULL UNIQUE,
+    verification_status TEXT NOT NULL DEFAULT 'PENDING' CHECK (verification_status IN ('PENDING', 'VERIFIED', 'FAILED')),
+    verified_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
--- Trigger to update updated_at timestamp
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
+-- Triggers to keep updated_at current on row updates
+-- (the JPA entities also set this in @PreUpdate; these cover writes made outside the app)
+CREATE TRIGGER IF NOT EXISTS trg_users_updated_at
+AFTER UPDATE ON users
+FOR EACH ROW
 BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
+    UPDATE users SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = OLD.id;
 END;
-$$ language 'plpgsql';
 
-CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
-FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
-CREATE TRIGGER update_campaigns_updated_at BEFORE UPDATE ON campaigns
-FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
-CREATE TRIGGER update_links_updated_at BEFORE UPDATE ON links
-FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
-CREATE TRIGGER update_qr_codes_updated_at BEFORE UPDATE ON qr_codes
-FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
-CREATE TRIGGER update_api_keys_updated_at BEFORE UPDATE ON api_keys
-FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
-CREATE TRIGGER update_domains_updated_at BEFORE UPDATE ON domains
-FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+CREATE TRIGGER IF NOT EXISTS trg_campaigns_updated_at
+AFTER UPDATE ON campaigns
+FOR EACH ROW
+BEGIN
+    UPDATE campaigns SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = OLD.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_links_updated_at
+AFTER UPDATE ON links
+FOR EACH ROW
+BEGIN
+    UPDATE links SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = OLD.id;
+END;

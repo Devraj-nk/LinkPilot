@@ -1,22 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from "next/server";
+import { proxyToBackend } from "@/lib/backend";
+
+export async function GET(request: NextRequest) {
+  const campaignId = request.nextUrl.searchParams.get("campaignId");
+  const query = campaignId ? `?campaignId=${encodeURIComponent(campaignId)}` : "";
+  return proxyToBackend(request, `/api/links${query}`);
+}
 
 export async function POST(request: NextRequest) {
-  try {
-    const { url } = await request.json();
-
-    // Forward the request to the Spring Boot backend
-    const backendResponse = await fetch('http://localhost:8080/api/links', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ url }),
-    });
-
-    const data = await backendResponse.json();
-    return NextResponse.json(data, { status: backendResponse.status });
-  } catch (error) {
-    console.error('Error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-  }
+  return proxyToBackend(request, "/api/links", { method: "POST", body: await request.text() });
 }

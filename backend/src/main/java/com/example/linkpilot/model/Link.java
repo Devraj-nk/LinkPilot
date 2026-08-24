@@ -33,6 +33,9 @@ public class Link {
     @Column(nullable = false)
     private LinkStatus status = LinkStatus.ACTIVE;
 
+    @Column(name = "click_count", nullable = false)
+    private int clickCount = 0;
+
     @Column(name = "expires_at")
     private OffsetDateTime expiresAt;
 
@@ -110,6 +113,14 @@ public class Link {
 
     public void setStatus(LinkStatus status) {
         this.status = status;
+    }
+
+    public int getClickCount() {
+        return clickCount;
+    }
+
+    public void setClickCount(int clickCount) {
+        this.clickCount = clickCount;
     }
 
     public OffsetDateTime getExpiresAt() {
