@@ -2,10 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api-client";
-import type { Campaign } from "@/lib/types";
+import type { Campaign, PageResponse } from "@/lib/types";
+
+const PAGE_SIZE = 20;
 
 export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -13,9 +18,13 @@ export default function CampaignsPage() {
   const [description, setDescription] = useState("");
   const [creating, setCreating] = useState(false);
 
-  const load = async () => {
+  const load = async (targetPage: number) => {
     try {
-      setCampaigns(await api.get<Campaign[]>("/api/campaigns"));
+      const data = await api.get<PageResponse<Campaign>>(`/api/campaigns?page=${targetPage}&size=${PAGE_SIZE}`);
+      setCampaigns(data.content);
+      setPage(data.page);
+      setTotalPages(data.totalPages);
+      setTotalElements(data.totalElements);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load campaigns");
     } finally {
@@ -27,7 +36,7 @@ export default function CampaignsPage() {
     // load()'s setState calls all happen after its `await`, in a microtask - not
     // synchronously during this render - but the rule can't see across the call boundary.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
+    load(0);
   }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -38,7 +47,7 @@ export default function CampaignsPage() {
       await api.post("/api/campaigns", { name, description: description || null });
       setName("");
       setDescription("");
-      await load();
+      await load(0);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to create campaign");
     } finally {
@@ -50,7 +59,8 @@ export default function CampaignsPage() {
     if (!confirm("Delete this campaign? Links stay, but lose their campaign.")) return;
     try {
       await api.del(`/api/campaigns/${id}`);
-      setCampaigns((prev) => prev.filter((c) => c.id !== id));
+      const nextPage = campaigns.length === 1 && page > 0 ? page - 1 : page;
+      await load(nextPage);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to delete campaign");
     }
@@ -96,20 +106,45 @@ export default function CampaignsPage() {
       ) : campaigns.length === 0 ? (
         <p className="text-sm text-gray-500">No campaigns yet.</p>
       ) : (
-        <ul className="divide-y divide-gray-100">
-          {campaigns.map((campaign) => (
-            <li key={campaign.id} className="py-3 flex items-center justify-between">
-              <div>
-                <p className="font-medium">{campaign.name}</p>
-                {campaign.description && <p className="text-sm text-gray-500">{campaign.description}</p>}
-                <p className="text-xs text-gray-400">{campaign.status}</p>
+        <>
+          <ul className="divide-y divide-gray-100">
+            {campaigns.map((campaign) => (
+              <li key={campaign.id} className="py-3 flex items-center justify-between">
+                <div>
+                  <p className="font-medium">{campaign.name}</p>
+                  {campaign.description && <p className="text-sm text-gray-500">{campaign.description}</p>}
+                  <p className="text-xs text-gray-400">{campaign.status}</p>
+                </div>
+                <button onClick={() => handleDelete(campaign.id)} className="text-sm text-red-600 hover:underline">
+                  Delete
+                </button>
+              </li>
+            ))}
+          </ul>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4 text-sm text-gray-500">
+              <span>
+                Page {page + 1} of {totalPages} - {totalElements} total
+              </span>
+              <div className="space-x-2">
+                <button
+                  onClick={() => load(page - 1)}
+                  disabled={page === 0}
+                  className="px-3 py-1 border border-gray-300 rounded-md disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => load(page + 1)}
+                  disabled={page + 1 >= totalPages}
+                  className="px-3 py-1 border border-gray-300 rounded-md disabled:opacity-50"
+                >
+                  Next
+                </button>
               </div>
-              <button onClick={() => handleDelete(campaign.id)} className="text-sm text-red-600 hover:underline">
-                Delete
-              </button>
-            </li>
-          ))}
-        </ul>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

@@ -2,19 +2,28 @@
 
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api-client";
-import type { DomainItem } from "@/lib/types";
+import type { DomainItem, PageResponse } from "@/lib/types";
+
+const PAGE_SIZE = 20;
 
 export default function DomainsPage() {
   const [domains, setDomains] = useState<DomainItem[]>([]);
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const [domain, setDomain] = useState("");
   const [creating, setCreating] = useState(false);
 
-  const load = async () => {
+  const load = async (targetPage: number) => {
     try {
-      setDomains(await api.get<DomainItem[]>("/api/domains"));
+      const data = await api.get<PageResponse<DomainItem>>(`/api/domains?page=${targetPage}&size=${PAGE_SIZE}`);
+      setDomains(data.content);
+      setPage(data.page);
+      setTotalPages(data.totalPages);
+      setTotalElements(data.totalElements);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load domains");
     } finally {
@@ -26,7 +35,7 @@ export default function DomainsPage() {
     // load()'s setState calls all happen after its `await`, in a microtask - not
     // synchronously during this render - but the rule can't see across the call boundary.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
+    load(0);
   }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -36,7 +45,7 @@ export default function DomainsPage() {
     try {
       await api.post("/api/domains", { domain });
       setDomain("");
-      await load();
+      await load(0);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to add domain");
     } finally {
@@ -47,7 +56,7 @@ export default function DomainsPage() {
   const handleVerify = async (id: string) => {
     try {
       await api.post(`/api/domains/${id}/verify`);
-      await load();
+      await load(page);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to verify domain");
     }
@@ -57,7 +66,8 @@ export default function DomainsPage() {
     if (!confirm("Remove this domain?")) return;
     try {
       await api.del(`/api/domains/${id}`);
-      setDomains((prev) => prev.filter((d) => d.id !== id));
+      const nextPage = domains.length === 1 && page > 0 ? page - 1 : page;
+      await load(nextPage);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to delete domain");
     }
@@ -98,26 +108,51 @@ export default function DomainsPage() {
       ) : domains.length === 0 ? (
         <p className="text-sm text-gray-500">No domains yet.</p>
       ) : (
-        <ul className="divide-y divide-gray-100">
-          {domains.map((d) => (
-            <li key={d.id} className="py-3 flex items-center justify-between">
-              <div>
-                <p className="font-medium">{d.domain}</p>
-                <p className="text-xs text-gray-400">{d.verificationStatus}</p>
-              </div>
-              <div className="flex items-center gap-3">
-                {d.verificationStatus !== "VERIFIED" && (
-                  <button onClick={() => handleVerify(d.id)} className="text-sm text-blue-600 hover:underline">
-                    Verify
+        <>
+          <ul className="divide-y divide-gray-100">
+            {domains.map((d) => (
+              <li key={d.id} className="py-3 flex items-center justify-between">
+                <div>
+                  <p className="font-medium">{d.domain}</p>
+                  <p className="text-xs text-gray-400">{d.verificationStatus}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  {d.verificationStatus !== "VERIFIED" && (
+                    <button onClick={() => handleVerify(d.id)} className="text-sm text-blue-600 hover:underline">
+                      Verify
+                    </button>
+                  )}
+                  <button onClick={() => handleDelete(d.id)} className="text-sm text-red-600 hover:underline">
+                    Delete
                   </button>
-                )}
-                <button onClick={() => handleDelete(d.id)} className="text-sm text-red-600 hover:underline">
-                  Delete
+                </div>
+              </li>
+            ))}
+          </ul>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4 text-sm text-gray-500">
+              <span>
+                Page {page + 1} of {totalPages} - {totalElements} total
+              </span>
+              <div className="space-x-2">
+                <button
+                  onClick={() => load(page - 1)}
+                  disabled={page === 0}
+                  className="px-3 py-1 border border-gray-300 rounded-md disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => load(page + 1)}
+                  disabled={page + 1 >= totalPages}
+                  className="px-3 py-1 border border-gray-300 rounded-md disabled:opacity-50"
+                >
+                  Next
                 </button>
               </div>
-            </li>
-          ))}
-        </ul>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

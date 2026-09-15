@@ -20,6 +20,10 @@ public class Link {
     @JoinColumn(name = "campaign_id")
     private Campaign campaign;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "domain_id")
+    private Domain domain;
+
     @Column(name = "short_code", nullable = false, unique = true, length = 10)
     private String shortCode;
 
@@ -81,6 +85,14 @@ public class Link {
 
     public void setCampaign(Campaign campaign) {
         this.campaign = campaign;
+    }
+
+    public Domain getDomain() {
+        return domain;
+    }
+
+    public void setDomain(Domain domain) {
+        this.domain = domain;
     }
 
     public String getShortCode() {

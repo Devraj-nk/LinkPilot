@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/api-client";
 import type { LinkItem, QRCodeItem } from "@/lib/types";
+import AnalyticsSection from "@/components/AnalyticsSection";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 
@@ -12,6 +13,7 @@ export default function LinkDetailClient({ linkId }: { linkId: string }) {
   const [qrCodes, setQrCodes] = useState<QRCodeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [togglingStatus, setTogglingStatus] = useState(false);
 
   const [size, setSize] = useState(256);
   const [foregroundColor, setForegroundColor] = useState("#000000");
@@ -60,6 +62,19 @@ export default function LinkDetailClient({ linkId }: { linkId: string }) {
     }
   };
 
+  const handleToggleStatus = async () => {
+    if (!link) return;
+    const nextStatus = link.status === "ACTIVE" ? "DISABLED" : "ACTIVE";
+    setTogglingStatus(true);
+    try {
+      setLink(await api.patch<LinkItem>(`/api/links/${linkId}/status`, { status: nextStatus }));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to update link status");
+    } finally {
+      setTogglingStatus(false);
+    }
+  };
+
   if (loading) {
     return <p className="text-sm text-gray-500">Loading...</p>;
   }
@@ -74,12 +89,33 @@ export default function LinkDetailClient({ linkId }: { linkId: string }) {
         <Link href="/dashboard" className="text-sm text-blue-600 hover:underline">
           &larr; Back to links
         </Link>
-        <h1 className="text-2xl font-bold mt-2">/{link.shortCode}</h1>
+        <h1 className="text-2xl font-bold mt-2">{link.shortUrl}</h1>
         <p className="text-gray-600 break-all">{link.originalUrl}</p>
         <dl className="mt-4 grid grid-cols-2 gap-4 text-sm max-w-md">
           <div>
             <dt className="text-gray-500">Status</dt>
-            <dd>{link.status}</dd>
+            <dd className="flex items-center gap-2">
+              <span
+                className={
+                  link.status === "ACTIVE"
+                    ? "text-green-700"
+                    : link.status === "DISABLED"
+                      ? "text-gray-500"
+                      : "text-red-600"
+                }
+              >
+                {link.status}
+              </span>
+              {link.status !== "EXPIRED" && (
+                <button
+                  onClick={handleToggleStatus}
+                  disabled={togglingStatus}
+                  className="text-xs text-blue-600 hover:underline disabled:opacity-50"
+                >
+                  {link.status === "ACTIVE" ? "Disable" : "Enable"}
+                </button>
+              )}
+            </dd>
           </div>
           <div>
             <dt className="text-gray-500">Clicks</dt>
@@ -94,6 +130,12 @@ export default function LinkDetailClient({ linkId }: { linkId: string }) {
             <dd>{link.expiresAt ? new Date(link.expiresAt).toLocaleString() : "Never"}</dd>
           </div>
         </dl>
+        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      </div>
+
+      <div>
+        <h2 className="text-xl font-semibold mb-4">Analytics</h2>
+        <AnalyticsSection linkId={linkId} />
       </div>
 
       <div>
@@ -136,7 +178,6 @@ export default function LinkDetailClient({ linkId }: { linkId: string }) {
             {generating ? "Generating..." : "Generate QR code"}
           </button>
         </form>
-        {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
 
         {qrCodes.length === 0 ? (
           <p className="text-sm text-gray-500">No QR codes yet.</p>
@@ -147,7 +188,7 @@ export default function LinkDetailClient({ linkId }: { linkId: string }) {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={`${API_BASE_URL}${qr.imageUrl}`}
-                  alt={`QR code for /${link.shortCode}`}
+                  alt={`QR code for ${link.shortUrl}`}
                   width={160}
                   height={160}
                   className="border border-gray-200 rounded-md"

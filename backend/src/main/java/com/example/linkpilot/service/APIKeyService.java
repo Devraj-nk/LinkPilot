@@ -6,10 +6,11 @@ import com.example.linkpilot.model.APIKey;
 import com.example.linkpilot.repository.APIKeyRepository;
 import com.example.linkpilot.repository.UserRepository;
 import com.example.linkpilot.security.TokenHasher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -28,8 +29,8 @@ public class APIKeyService {
         this.tokenHasher = tokenHasher;
     }
 
-    public List<APIKey> listForUser(UUID userId) {
-        return apiKeyRepository.findByUserId(userId);
+    public Page<APIKey> listForUser(UUID userId, Pageable pageable) {
+        return apiKeyRepository.findByUserId(userId, pageable);
     }
 
     @Transactional

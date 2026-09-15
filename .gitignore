@@ -1,0 +1,3 @@
+# Local overrides for docker-compose.yml (e.g. JWT_SECRET) - never commit this
+.env
+problems.md

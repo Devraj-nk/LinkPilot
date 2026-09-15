@@ -1,4 +1,4 @@
-CREATE TABLE click_events
+CREATE TABLE IF NOT EXISTS click_events
 (
     event_id UUID DEFAULT generateUUIDv4(),
     link_id UUID NOT NULL,

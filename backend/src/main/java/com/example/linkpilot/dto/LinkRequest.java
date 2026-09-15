@@ -9,6 +9,7 @@ public record LinkRequest(
         @NotBlank String originalUrl,
         String title,
         UUID campaignId,
+        UUID domainId,
         String customCode,
         OffsetDateTime expiresAt
 ) {

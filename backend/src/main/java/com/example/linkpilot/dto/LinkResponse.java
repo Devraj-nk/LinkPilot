@@ -13,12 +13,16 @@ public record LinkResponse(
         String title,
         LinkStatus status,
         UUID campaignId,
+        UUID domainId,
+        String shortUrl,
         int clickCount,
         OffsetDateTime expiresAt,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt
 ) {
-    public static LinkResponse from(Link link) {
+    public static LinkResponse from(Link link, String defaultPublicBaseUrl) {
+        String host = link.getDomain() != null ? link.getDomain().getDomain() : defaultPublicBaseUrl;
+        String shortUrl = host.startsWith("http") ? host + "/" + link.getShortCode() : "https://" + host + "/" + link.getShortCode();
         return new LinkResponse(
                 link.getId(),
                 link.getShortCode(),
@@ -26,6 +30,8 @@ public record LinkResponse(
                 link.getTitle(),
                 link.getStatus(),
                 link.getCampaign() != null ? link.getCampaign().getId() : null,
+                link.getDomain() != null ? link.getDomain().getId() : null,
+                shortUrl,
                 link.getClickCount(),
                 link.getExpiresAt(),
                 link.getCreatedAt(),

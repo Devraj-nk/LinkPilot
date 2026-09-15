@@ -1,6 +1,6 @@
 -- daily link clicks aggregation
 
-CREATE MATERIALIZED VIEW link_clicks_daily
+CREATE MATERIALIZED VIEW IF NOT EXISTS link_clicks_daily
 ENGINE = AggregatingMergeTree()
 ORDER BY (link_id, date)
 AS SELECT
@@ -16,7 +16,7 @@ GROUP BY link_id, date;
 
 -- Hourly Aggregates Materialized View
 
-CREATE MATERIALIZED VIEW link_clicks_hourly
+CREATE MATERIALIZED VIEW IF NOT EXISTS link_clicks_hourly
 ENGINE = AggregatingMergeTree()
 ORDER BY (link_id, date, hour)
 AS SELECT
@@ -30,7 +30,7 @@ GROUP BY link_id, date, hour;
 
 -- Referrer Aggregates Materialized View
 
-CREATE MATERIALIZED VIEW link_clicks_referral
+CREATE MATERIALIZED VIEW IF NOT EXISTS link_clicks_referral
 ENGINE = AggregatingMergeTree()
 ORDER BY (link_id, referrer)
 AS SELECT

@@ -2,8 +2,13 @@ import { NextRequest } from "next/server";
 import { proxyToBackend } from "@/lib/backend";
 
 export async function GET(request: NextRequest) {
-  const campaignId = request.nextUrl.searchParams.get("campaignId");
-  const query = campaignId ? `?campaignId=${encodeURIComponent(campaignId)}` : "";
+  const params = request.nextUrl.searchParams;
+  const forwarded = new URLSearchParams();
+  for (const key of ["campaignId", "page", "size"]) {
+    const value = params.get(key);
+    if (value) forwarded.set(key, value);
+  }
+  const query = forwarded.size > 0 ? `?${forwarded.toString()}` : "";
   return proxyToBackend(request, `/api/links${query}`);
 }
 

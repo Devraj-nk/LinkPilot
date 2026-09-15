@@ -2,15 +2,17 @@ package com.example.linkpilot.controller;
 
 import com.example.linkpilot.dto.CampaignRequest;
 import com.example.linkpilot.dto.CampaignResponse;
+import com.example.linkpilot.dto.PageResponse;
 import com.example.linkpilot.security.AuthenticatedUser;
 import com.example.linkpilot.service.CampaignService;
+import com.example.linkpilot.web.PageRequestFactory;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -24,10 +26,13 @@ public class CampaignController {
     }
 
     @GetMapping
-    public List<CampaignResponse> list(@AuthenticationPrincipal AuthenticatedUser principal) {
-        return campaignService.listForUser(principal.id()).stream()
-                .map(CampaignResponse::from)
-                .toList();
+    public PageResponse<CampaignResponse> list(
+            @AuthenticationPrincipal AuthenticatedUser principal,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        Pageable pageable = PageRequestFactory.of(page, size, "createdAt");
+        return PageResponse.from(campaignService.listForUser(principal.id(), pageable).map(CampaignResponse::from));
     }
 
     @GetMapping("/{id}")

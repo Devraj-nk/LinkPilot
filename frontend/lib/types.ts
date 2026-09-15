@@ -28,6 +28,8 @@ export interface LinkItem {
   title: string | null;
   status: LinkStatus;
   campaignId: string | null;
+  domainId: string | null;
+  shortUrl: string;
   clickCount: number;
   expiresAt: string | null;
   createdAt: string;
@@ -51,4 +53,32 @@ export interface DomainItem {
   verificationStatus: DomainVerificationStatus;
   verifiedAt: string | null;
   createdAt: string;
+}
+
+export interface DailyClickPoint {
+  date: string;
+  views: number;
+  uniqueVisitors: number;
+}
+
+export interface NamedCount {
+  name: string;
+  count: number;
+}
+
+export interface LinkAnalytics {
+  totalClicks: number;
+  dailyClicks: DailyClickPoint[];
+  deviceBreakdown: NamedCount[];
+  topReferrers: NamedCount[];
+  analyticsAvailable: boolean;
+}
+
+export interface PageResponse<T> {
+  content: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  hasNext: boolean;
 }

@@ -6,10 +6,11 @@ import com.example.linkpilot.model.Campaign;
 import com.example.linkpilot.model.CampaignStatus;
 import com.example.linkpilot.repository.CampaignRepository;
 import com.example.linkpilot.repository.UserRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -23,8 +24,8 @@ public class CampaignService {
         this.userRepository = userRepository;
     }
 
-    public List<Campaign> listForUser(UUID userId) {
-        return campaignRepository.findByUserId(userId);
+    public Page<Campaign> listForUser(UUID userId, Pageable pageable) {
+        return campaignRepository.findByUserId(userId, pageable);
     }
 
     public Campaign getForUser(UUID userId, UUID campaignId) {

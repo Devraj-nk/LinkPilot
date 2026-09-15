@@ -3,27 +3,46 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/api-client";
-import type { Campaign, LinkItem } from "@/lib/types";
+import type { Campaign, DomainItem, LinkItem, PageResponse } from "@/lib/types";
+
+const PAGE_SIZE = 20;
+// Dropdowns want "all of a user's campaigns/domains" rather than one page of them -
+// this is the API's own max page size (see PageRequestFactory on the backend), so it's
+// still a bounded request, just a generous one for a list that's meant to be complete.
+const DROPDOWN_SIZE = 100;
 
 export default function DashboardPage() {
   const [links, setLinks] = useState<LinkItem[]>([]);
+  const [linkPage, setLinkPage] = useState(0);
+  const [linkTotalPages, setLinkTotalPages] = useState(0);
+  const [linkTotalElements, setLinkTotalElements] = useState(0);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [domains, setDomains] = useState<DomainItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const [originalUrl, setOriginalUrl] = useState("");
   const [title, setTitle] = useState("");
   const [campaignId, setCampaignId] = useState("");
+  const [domainId, setDomainId] = useState("");
   const [creating, setCreating] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
-  const load = async () => {
+  const verifiedDomains = domains.filter((d) => d.verificationStatus === "VERIFIED");
+
+  const load = async (page: number) => {
     try {
-      const [linksData, campaignsData] = await Promise.all([
-        api.get<LinkItem[]>("/api/links"),
-        api.get<Campaign[]>("/api/campaigns"),
+      const [linksData, campaignsData, domainsData] = await Promise.all([
+        api.get<PageResponse<LinkItem>>(`/api/links?page=${page}&size=${PAGE_SIZE}`),
+        api.get<PageResponse<Campaign>>(`/api/campaigns?size=${DROPDOWN_SIZE}`),
+        api.get<PageResponse<DomainItem>>(`/api/domains?size=${DROPDOWN_SIZE}`),
       ]);
-      setLinks(linksData);
-      setCampaigns(campaignsData);
+      setLinks(linksData.content);
+      setLinkPage(linksData.page);
+      setLinkTotalPages(linksData.totalPages);
+      setLinkTotalElements(linksData.totalElements);
+      setCampaigns(campaignsData.content);
+      setDomains(domainsData.content);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load links");
     } finally {
@@ -35,7 +54,7 @@ export default function DashboardPage() {
     // load()'s setState calls all happen after its `await`, in a microtask - not
     // synchronously during this render - but the rule can't see across the call boundary.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
+    load(0);
   }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -47,11 +66,14 @@ export default function DashboardPage() {
         originalUrl,
         title: title || null,
         campaignId: campaignId || null,
+        domainId: domainId || null,
       });
       setOriginalUrl("");
       setTitle("");
       setCampaignId("");
-      await load();
+      setDomainId("");
+      // A new link sorts first (newest-first), so jump back to page 0 to see it.
+      await load(0);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to create link");
     } finally {
@@ -63,9 +85,25 @@ export default function DashboardPage() {
     if (!confirm("Delete this link?")) return;
     try {
       await api.del(`/api/links/${id}`);
-      setLinks((prev) => prev.filter((l) => l.id !== id));
+      // Reload the current page rather than just filtering locally - deleting the
+      // last row on a page should pull the next page's item up, not leave a gap.
+      const nextPage = links.length === 1 && linkPage > 0 ? linkPage - 1 : linkPage;
+      await load(nextPage);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to delete link");
+    }
+  };
+
+  const handleToggleStatus = async (link: LinkItem) => {
+    const nextStatus = link.status === "ACTIVE" ? "DISABLED" : "ACTIVE";
+    setTogglingId(link.id);
+    try {
+      const updated = await api.patch<LinkItem>(`/api/links/${link.id}/status`, { status: nextStatus });
+      setLinks((prev) => prev.map((l) => (l.id === link.id ? updated : l)));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to update link status");
+    } finally {
+      setTogglingId(null);
     }
   };
 
@@ -109,6 +147,26 @@ export default function DashboardPage() {
               ))}
             </select>
           </div>
+          <div className="min-w-[160px]">
+            <label className="block text-sm font-medium mb-1">Domain (optional)</label>
+            <select
+              value={domainId}
+              onChange={(e) => setDomainId(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Default</option>
+              {verifiedDomains.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.domain}
+                </option>
+              ))}
+            </select>
+            {domains.length > 0 && verifiedDomains.length === 0 && (
+              <p className="mt-1 text-xs text-gray-500">
+                No verified domains yet - see the Domains tab.
+              </p>
+            )}
+          </div>
           <button
             type="submit"
             disabled={creating}
@@ -147,9 +205,30 @@ export default function DashboardPage() {
                   <td className="py-2 pr-4 max-w-xs truncate" title={link.originalUrl}>
                     {link.originalUrl}
                   </td>
-                  <td className="py-2 pr-4">{link.status}</td>
-                  <td className="py-2 pr-4">{link.clickCount}</td>
                   <td className="py-2 pr-4">
+                    <span
+                      className={
+                        link.status === "ACTIVE"
+                          ? "text-green-700"
+                          : link.status === "DISABLED"
+                            ? "text-gray-500"
+                            : "text-red-600"
+                      }
+                    >
+                      {link.status}
+                    </span>
+                  </td>
+                  <td className="py-2 pr-4">{link.clickCount}</td>
+                  <td className="py-2 pr-4 space-x-3 whitespace-nowrap">
+                    {link.status !== "EXPIRED" && (
+                      <button
+                        onClick={() => handleToggleStatus(link)}
+                        disabled={togglingId === link.id}
+                        className="text-blue-600 hover:underline disabled:opacity-50"
+                      >
+                        {link.status === "ACTIVE" ? "Disable" : "Enable"}
+                      </button>
+                    )}
                     <button onClick={() => handleDelete(link.id)} className="text-red-600 hover:underline">
                       Delete
                     </button>
@@ -158,6 +237,28 @@ export default function DashboardPage() {
               ))}
             </tbody>
           </table>
+          <div className="flex items-center justify-between mt-4 text-sm text-gray-500">
+            <span>
+              Page {linkPage + 1} of {Math.max(linkTotalPages, 1)} - {linkTotalElements} link
+              {linkTotalElements === 1 ? "" : "s"} total
+            </span>
+            <div className="space-x-2">
+              <button
+                onClick={() => load(linkPage - 1)}
+                disabled={linkPage === 0}
+                className="px-3 py-1 border border-gray-300 rounded-md disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => load(linkPage + 1)}
+                disabled={linkPage + 1 >= linkTotalPages}
+                className="px-3 py-1 border border-gray-300 rounded-md disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

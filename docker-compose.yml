@@ -1,0 +1,62 @@
+# One-command local/demo stack: docker compose up --build
+#
+# Override JWT_SECRET for anything beyond local demo use (it otherwise falls back to
+# the same dev-only default baked into backend/src/main/resources/application.properties) -
+# either export it before running, or put it in a .env file next to this compose file;
+# Compose reads that automatically and it's already gitignored.
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24-alpine
+    restart: unless-stopped
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      - redis
+      - clickhouse
+    environment:
+      - SPRING_DATA_REDIS_HOST=redis
+      - CLICKHOUSE_URL=jdbc:clickhouse://clickhouse:8123/default
+      - APP_PUBLIC_BASE_URL=http://localhost:3000
+      - APP_CORS_ALLOWED_ORIGINS=http://localhost:3000
+      # Name only, no value: passes JWT_SECRET through from the shell/.env if it's set
+      # there, and omits it entirely (letting Spring's own dev-only default apply)
+      # if it isn't - never sets it to an empty string.
+      - JWT_SECRET
+    ports:
+      - "8080:8080"
+    volumes:
+      - backend-data:/app/data
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Read by the browser - must be the host-visible address, not the
+        # container-network one (that's BACKEND_URL below, used server-side only).
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      # Used by the Next.js server's own API routes to reach the backend inside the
+      # compose network.
+      BACKEND_URL: http://backend:8080
+    ports:
+      - "3000:3000"
+
+volumes:
+  backend-data:
+  clickhouse-data:

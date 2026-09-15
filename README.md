@@ -1,6 +1,92 @@
-# LinkPilot - URL Shortener Service
+# LinkPilot — Self-Hosted URL Shortener with Multi-Tenant Auth, Custom Domains & Real-Time Click Analytics
 
-A modern URL shortening service built with a full-stack architecture.
+A full-stack URL shortener where every resource is scoped to its owner at the service
+layer, custom domains actually constrain where a link redirects, and clicks flow
+through an async event pipeline into a real analytics store — designed to run
+entirely self-hosted with `docker compose up`, no managed database or external
+service required.
+
+## High-Level Design
+
+```
+ Browser
+   |
+   |  /api/* calls: cookies only, no tokens in client JS
+   |  short links (e.g. /abc123): the REAL Host header lands here first -
+   |  this is also the real entry point for a custom domain
+   v
+ Next.js frontend
+   - API route proxies: attach Bearer JWT                -----------+
+   - [shortCode] route: 307s to the backend, forwarding             |
+     the real Host as a ?host=<host> query param                    |
+   |                                                                 |
+   | Authorization: Bearer <JWT>                                    | GET /r/{shortCode}?host=<host>
+   v                                                                 v
+ +---------------------------------------------------------------------+
+ |                        Spring Boot backend                            |
+ |                                                                        |
+ |   REST controllers                RedirectController                   |
+ |   (auth, links, campaigns,        GET /r/{shortCode}                    |
+ |    domains, api-keys)                     |                              |
+ |            \                              /                              |
+ |             \                            /                               |
+ |              v                          v                                |
+ |       Services (ownership checks, status/expiry rules,                    |
+ |       domain/host match, short-code generation)                            |
+ |              |              |                  |                           |
+ +--------------|--------------|------------------|---------------------------+
+                |              |                  |
+                v              v                  v
+            SQLite           Redis          ClickEventService
+       users, links,     shortCode ->        (async, fires after
+       campaigns,        originalUrl          the redirect response;
+       domains, tokens    cache               every failure is
+                                               swallowed internally)
+                                                       |
+                                                       v
+                                                  ClickHouse
+                                          click_events + daily/device/
+                                          referrer aggregates. Optional
+                                          infra - the product works
+                                          fine even if it's down.
+```
+
+**Component responsibilities**
+
+| Component | Responsibility |
+|---|---|
+| Next.js frontend | Renders the dashboard and proxies every `/api/*` call server-side (so the browser only ever holds httpOnly session cookies, never a raw JWT); also the actual entry point for short links themselves - `/{shortCode}` is a frontend route that forwards to the backend |
+| Spring Boot backend | REST API, JWT/refresh-token auth, and per-user ownership checks enforced in the service layer (not just hidden in the UI) |
+| SQLite | Primary transactional store - single-writer (WAL mode, capped connection pool), chosen specifically so the whole stack self-hosts as one file, not a managed DB service |
+| Redis | Read-through cache in front of the hot short-code lookup |
+| ClickHouse | Append-only analytics store for `click_events`, aggregated via materialized views; optional infrastructure - if it's unreachable, redirects and the rest of the product are unaffected, only the analytics dashboard degrades |
+
+**Key request flows**
+
+- **Auth** - `/login`/`/register` hit `POST /api/auth/*`, which returns a short-lived
+  JWT access token plus an opaque, rotating, SHA-256-hashed-at-rest refresh token; the
+  Next.js route writes both as httpOnly cookies. Every later `/api/*` call goes
+  through a proxy route that attaches the access token as a Bearer header and, on a
+  single 401, silently calls `/api/auth/refresh` and retries once before giving up.
+- **Create a link** - `LinkService` validates that any given campaign/domain belongs
+  to the caller and that a domain is `VERIFIED` before it can be used, generates or
+  validates the short code, persists the link, and warms the Redis cache.
+- **Resolve a redirect** - a short link is a root-level path on the *frontend*
+  (`go.example.com/abc123`), not a direct hit on the backend. `[shortCode]/route.ts`
+  is where the real `Host` header is actually seen (including for a custom domain),
+  and it 307s the browser to the backend, forwarding that host as a `?host=` query
+  param so it survives the hop - the browser's follow-up request to the backend
+  otherwise carries the backend's own address as its `Host` header, not the domain
+  the visitor typed. The backend then does: domain/host match -> status check ->
+  expiry check -> click-count increment (same DB transaction) -> `302` straight back
+  to the browser, which finally lands on the real destination. Recording the detailed
+  click event into ClickHouse happens *after* the redirect is resolved, on a separate
+  thread pool, with every failure caught internally - a slow or unreachable analytics
+  store can never delay or break a redirect.
+- **Analytics** - `GET /api/links/{id}/analytics` is ownership-checked, then queries
+  ClickHouse directly for a daily click series, device breakdown, and top referrers;
+  if ClickHouse can't be reached it returns `analyticsAvailable: false` with the fast
+  SQLite click counter still intact, instead of failing the request.
 
 ## Tech Stack
 
@@ -8,6 +94,25 @@ A modern URL shortening service built with a full-stack architecture.
 - **Backend**: Spring Boot + Java
 - **Primary Database**: SQLite (embedded)
 - **Cache / Temporary State**: Redis
+- **Analytics**: ClickHouse (click event ingestion + aggregation)
+
+## Run everything with Docker
+
+```bash
+docker compose up --build
+```
+
+This starts Redis, ClickHouse, the backend (`:8080`), and the frontend (`:3000`) together -
+no local Java/Node/Maven install needed. The SQLite file and ClickHouse data persist in
+named volumes across restarts. To set a real `JWT_SECRET` (recommended for anything beyond
+a local demo), put it in a `.env` file next to `docker-compose.yml`:
+
+```
+JWT_SECRET=<a base64-encoded 256-bit value>
+```
+
+Without one, it falls back to the same dev-only default baked into
+`backend/src/main/resources/application.properties`.
 
 ## Project Structure
 
@@ -113,12 +218,18 @@ All routes below are under `http://localhost:8080` and, except where noted, requ
 - `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/refresh`, `POST /api/auth/logout` - public
 - `GET /api/users/me` - current user profile
 - `GET/POST /api/campaigns`, `GET/PUT/DELETE /api/campaigns/{id}`
-- `GET/POST /api/links`, `GET/PUT/DELETE /api/links/{id}`
+- `GET/POST /api/links`, `GET/PUT/DELETE /api/links/{id}`, `PATCH /api/links/{id}/status`
+- `GET /api/links/{id}/analytics` - clicks over time, device breakdown, top referrers
 - `GET /r/{shortCode}` - public redirect (302 to the original URL, tracks the click)
 - `GET/POST /api/links/{linkId}/qrcodes`, `DELETE /api/qrcodes/{id}`
 - `GET /api/qrcodes/{id}/image` - public, returns a PNG
 - `GET/POST /api/domains`, `DELETE /api/domains/{id}`, `POST /api/domains/{id}/verify`
 - `GET/POST /api/api-keys`, `DELETE /api/api-keys/{id}`
+
+The four `GET` list endpoints (`/api/links`, `/api/campaigns`, `/api/domains`,
+`/api/api-keys`) are paginated: `?page=0&size=20` (0-indexed, size capped at 100,
+sorted newest-first). Each returns `{ content, page, size, totalElements,
+totalPages, hasNext }` rather than a bare array.
 
 The frontend never calls these directly from the browser - it goes through the
 matching proxy routes under `frontend/app/api/**` (see [Authentication](#authentication)).
@@ -126,11 +237,18 @@ matching proxy routes under `frontend/app/api/**` (see [Authentication](#authent
 ## Features Implemented
 
 1. Email/password auth (JWT access tokens + rotating refresh tokens)
-2. Link shortening with custom or generated short codes, campaigns, expiration, and click tracking
-3. Redirects served at the root (`/{shortCode}`) via the backend, with Redis caching
+2. Link shortening with custom or generated short codes, campaigns, expiration, status
+   (active/disabled), and click tracking
+3. Redirects served at `/r/{shortCode}` via the backend, with Redis caching
 4. QR code generation (PNG) for any link, with configurable size/colors
-5. Campaign and custom-domain management
-6. API key management (for future programmatic access - see Future Enhancements)
+5. Campaign management; custom domains that actually constrain redirects (a link bound
+   to a verified domain only resolves on that domain's `Host` header)
+6. Real click analytics - an async event pipeline into ClickHouse (device/browser/OS,
+   referrer, daily-salted unique-visitor hashing) feeding a per-link dashboard, with
+   graceful degradation if ClickHouse isn't reachable
+7. API key management (for future programmatic access - see Future Enhancements)
+8. Docker packaging (`docker compose up --build` - see above)
+9. Backend test suite (auth flow, `LinkService` ownership/expiry/status logic)
 
 ## Future Enhancements
 
@@ -139,6 +257,5 @@ matching proxy routes under `frontend/app/api/**` (see [Authentication](#authent
 - Real DNS-based domain verification (currently a stub that just flips the status)
 - Using API keys to authenticate API requests (currently only CRUD-managed, not a working auth path)
 - Admin-only endpoints (the `ADMIN` role exists but nothing checks it)
-- Advanced analytics dashboard
+- GeoIP enrichment for analytics (`country`/`region`/`city` are unpopulated placeholders)
 - Rate limiting and abuse prevention
-- Docker containerization for easy deployment

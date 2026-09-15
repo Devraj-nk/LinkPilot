@@ -1,5 +1,14 @@
--- SQLite schema. Enforce FK constraints (off by default in SQLite) --
--- this is also set via the JDBC URL (?foreign_keys=on) for app connections.
+-- SQLite schema, kept as documentation of the intended shape - NOT executed by the
+-- app. Hibernate's ddl-auto=update generates the actual tables (see
+-- SqliteSchemaInitializer for what *is* run: the indexes in performIndex.sql, added
+-- once Hibernate's tables exist). This file's column types are illustrative, not
+-- literal: Hibernate's SQLite dialect stores UUID id columns as BLOB and
+-- OffsetDateTime columns as epoch-millisecond text under the hood, not as the plain
+-- ISO-8601 TEXT this file declares - a hand-authored table here would not be
+-- read/write compatible with what the JPA entities actually produce.
+--
+-- Enforce FK constraints (off by default in SQLite) - this is also set via the JDBC
+-- URL (?foreign_keys=on) for app connections.
 PRAGMA foreign_keys = ON;
 
 -- Users table
@@ -40,6 +49,7 @@ CREATE TABLE IF NOT EXISTS links (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     campaign_id TEXT REFERENCES campaigns(id) ON DELETE SET NULL,
+    domain_id TEXT REFERENCES domains(id) ON DELETE SET NULL,
     short_code TEXT NOT NULL UNIQUE,
     original_url TEXT NOT NULL,
     title TEXT,

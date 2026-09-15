@@ -7,11 +7,12 @@ import com.example.linkpilot.model.Domain;
 import com.example.linkpilot.model.DomainVerificationStatus;
 import com.example.linkpilot.repository.DomainRepository;
 import com.example.linkpilot.repository.UserRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
-import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -25,8 +26,8 @@ public class DomainService {
         this.userRepository = userRepository;
     }
 
-    public List<Domain> listForUser(UUID userId) {
-        return domainRepository.findByUserId(userId);
+    public Page<Domain> listForUser(UUID userId, Pageable pageable) {
+        return domainRepository.findByUserId(userId, pageable);
     }
 
     public Domain getForUser(UUID userId, UUID domainId) {
