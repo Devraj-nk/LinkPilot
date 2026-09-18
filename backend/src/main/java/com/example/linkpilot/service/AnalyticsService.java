@@ -26,10 +26,17 @@ public class AnalyticsService {
 
     private static final Logger log = LoggerFactory.getLogger(AnalyticsService.class);
 
+    // link_id is embedded as a literal via .formatted(), not a JDBC `?` placeholder -
+    // clickhouse-jdbc 0.6.3's PreparedStatement placeholder substitution works for
+    // update() (INSERT) but not query() (SELECT): verified INSERTs with `?` land
+    // correctly, while a `?` in a SELECT reaches ClickHouse unsubstituted and fails
+    // with a syntax error. This is safe from injection regardless: the value is
+    // always link.getId().toString(), a java.util.UUID whose format is guaranteed to
+    // be only hex digits and hyphens - never SQL metacharacters.
     private static final String DAILY_SQL = """
             SELECT toString(date) AS day, count() AS views, uniqExact(ip_hash) AS uniqueVisitors
             FROM click_events
-            WHERE link_id = ? AND date >= today() - 13
+            WHERE link_id = '%s' AND date >= today() - 13
             GROUP BY day
             ORDER BY day
             """;
@@ -37,7 +44,7 @@ public class AnalyticsService {
     private static final String DEVICE_SQL = """
             SELECT device_type AS name, count() AS cnt
             FROM click_events
-            WHERE link_id = ?
+            WHERE link_id = '%s'
             GROUP BY device_type
             ORDER BY cnt DESC
             LIMIT 10
@@ -46,7 +53,7 @@ public class AnalyticsService {
     private static final String REFERRER_SQL = """
             SELECT referrer AS name, count() AS cnt
             FROM click_events
-            WHERE link_id = ? AND referrer != ''
+            WHERE link_id = '%s' AND referrer != ''
             GROUP BY referrer
             ORDER BY cnt DESC
             LIMIT 10
@@ -66,19 +73,16 @@ public class AnalyticsService {
 
         try {
             List<DailyClickPoint> daily = clickHouseJdbcTemplate.query(
-                    DAILY_SQL,
-                    (rs, i) -> new DailyClickPoint(rs.getString("day"), rs.getLong("views"), rs.getLong("uniqueVisitors")),
-                    id
+                    DAILY_SQL.formatted(id),
+                    (rs, i) -> new DailyClickPoint(rs.getString("day"), rs.getLong("views"), rs.getLong("uniqueVisitors"))
             );
             List<NamedCount> devices = clickHouseJdbcTemplate.query(
-                    DEVICE_SQL,
-                    (rs, i) -> new NamedCount(rs.getString("name"), rs.getLong("cnt")),
-                    id
+                    DEVICE_SQL.formatted(id),
+                    (rs, i) -> new NamedCount(rs.getString("name"), rs.getLong("cnt"))
             );
             List<NamedCount> referrers = clickHouseJdbcTemplate.query(
-                    REFERRER_SQL,
-                    (rs, i) -> new NamedCount(rs.getString("name"), rs.getLong("cnt")),
-                    id
+                    REFERRER_SQL.formatted(id),
+                    (rs, i) -> new NamedCount(rs.getString("name"), rs.getLong("cnt"))
             );
             return new LinkAnalyticsResponse(link.getClickCount(), daily, devices, referrers, true);
         } catch (Exception e) {

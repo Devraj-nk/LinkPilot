@@ -2,7 +2,6 @@ package com.example.linkpilot.service;
 
 import com.example.linkpilot.analytics.UserAgentParser;
 import com.example.linkpilot.model.Link;
-import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -38,13 +37,19 @@ public class ClickEventService {
         this.clickHouseJdbcTemplate = clickHouseJdbcTemplate;
     }
 
+    /**
+     * Takes plain values, not the HttpServletRequest itself - this runs on a background
+     * thread (see AsyncConfig) after the request-handling thread has already returned,
+     * and Tomcat is free to recycle the Request object at that point. Reading from a
+     * recycled request throws; everything needed here must be extracted synchronously by
+     * the caller first.
+     */
     @Async("analyticsExecutor")
-    public void recordAsync(Link link, HttpServletRequest request) {
+    public void recordAsync(Link link, String userAgent, String referer, String clientIp) {
         try {
-            String userAgent = request.getHeader("User-Agent");
             UserAgentParser.Result ua = UserAgentParser.parse(userAgent);
-            String referrerHost = extractHost(request.getHeader("Referer"));
-            long ipHash = hashIp(clientIp(request));
+            String referrerHost = extractHost(referer);
+            long ipHash = hashIp(clientIp);
 
             clickHouseJdbcTemplate.update(
                     INSERT_SQL,
@@ -59,14 +64,6 @@ public class ClickEventService {
         } catch (Exception e) {
             log.warn("Could not record click event for link {}: {}", link.getId(), e.getMessage());
         }
-    }
-
-    private String clientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
     }
 
     private String extractHost(String referer) {

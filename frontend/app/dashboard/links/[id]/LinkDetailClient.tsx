@@ -89,7 +89,11 @@ export default function LinkDetailClient({ linkId }: { linkId: string }) {
         <Link href="/dashboard" className="text-sm text-blue-600 hover:underline">
           &larr; Back to links
         </Link>
-        <h1 className="text-2xl font-bold mt-2">{link.shortUrl}</h1>
+        <h1 className="text-2xl font-bold mt-2">
+          <a href={link.shortUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+            {link.shortUrl}
+          </a>
+        </h1>
         <p className="text-gray-600 break-all">{link.originalUrl}</p>
         <dl className="mt-4 grid grid-cols-2 gap-4 text-sm max-w-md">
           <div>

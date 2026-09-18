@@ -33,6 +33,11 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.GONE, ex.getMessage(), request);
     }
 
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<ApiError> handleRateLimit(RateLimitExceededException ex, HttpServletRequest request) {
+        return build(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage(), request);
+    }
+
     @ExceptionHandler(UnsupportedFormatException.class)
     public ResponseEntity<ApiError> handleUnsupportedFormat(UnsupportedFormatException ex, HttpServletRequest request) {
         return build(HttpStatus.NOT_IMPLEMENTED, ex.getMessage(), request);

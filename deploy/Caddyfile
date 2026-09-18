@@ -1,0 +1,28 @@
+# Reverse proxy for hosting LinkPilot on one domain, both frontend and backend
+# behind the same origin. Caddy gets you automatic HTTPS (a real cert from Let's
+# Encrypt) for free just by naming a real domain here - no manual cert handling.
+#
+# Used together with docker-compose.prod.yml - see the "Hosting on your own server"
+# section in the root README for the full setup.
+#
+# Set DOMAIN in a .env file next to docker-compose.yml before starting this, e.g.:
+#   DOMAIN=links.example.com
+
+{$DOMAIN} {
+	# The backend's own paths - routed straight to it, on the same public origin the
+	# frontend uses. This is what makes PUBLIC_BACKEND_URL=https://{$DOMAIN} correct:
+	# the browser-facing redirect a short-link click goes through lands right back on
+	# this same proxy, which sends /r/* on to the backend.
+	handle /api/* {
+		reverse_proxy backend:8080
+	}
+	handle /r/* {
+		reverse_proxy backend:8080
+	}
+
+	# Everything else (the dashboard, and root-level short links like /abc123) goes to
+	# the Next.js frontend, which then forwards short-link hits back to /r/* above.
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

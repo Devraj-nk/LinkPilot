@@ -28,7 +28,10 @@ services:
       - clickhouse
     environment:
       - SPRING_DATA_REDIS_HOST=redis
-      - CLICKHOUSE_URL=jdbc:clickhouse://clickhouse:8123/default
+      # compress=0 works around a clickhouse-jdbc 0.6.3 bug decoding compressed SELECT
+      # responses (verified against ClickHouse Cloud; inserts are unaffected) - see the
+      # comment on this same default in application.properties.
+      - CLICKHOUSE_URL=jdbc:clickhouse://clickhouse:8123/default?compress=0
       - APP_PUBLIC_BASE_URL=http://localhost:3000
       - APP_CORS_ALLOWED_ORIGINS=http://localhost:3000
       # Name only, no value: passes JWT_SECRET through from the shell/.env if it's set
@@ -52,8 +55,14 @@ services:
       - backend
     environment:
       # Used by the Next.js server's own API routes to reach the backend inside the
-      # compose network.
+      # compose network - safe to be an internal, compose-only hostname.
       BACKEND_URL: http://backend:8080
+      # Used only to build the redirect Location header sent to the *browser* when a
+      # short link is clicked - must be an address the browser can actually resolve,
+      # which "backend" (above) is not. Locally that's the published host port;
+      # deployed behind a single reverse-proxied domain (see README) it should be
+      # that public domain instead, with the proxy routing /r/* to this backend.
+      PUBLIC_BACKEND_URL: http://localhost:8080
     ports:
       - "3000:3000"
 

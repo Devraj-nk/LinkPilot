@@ -234,6 +234,10 @@ totalPages, hasNext }` rather than a bare array.
 The frontend never calls these directly from the browser - it goes through the
 matching proxy routes under `frontend/app/api/**` (see [Authentication](#authentication)).
 
+`POST /api/auth/login` (10/min), `POST /api/auth/register` (5/hour), `POST /api/links`
+(30/min per user), and `GET /r/{shortCode}` (60/min per IP) are rate-limited via a
+Redis-backed fixed-window counter; exceeding the limit returns `429 Too Many Requests`.
+
 ## Features Implemented
 
 1. Email/password auth (JWT access tokens + rotating refresh tokens)
@@ -249,6 +253,8 @@ matching proxy routes under `frontend/app/api/**` (see [Authentication](#authent
 7. API key management (for future programmatic access - see Future Enhancements)
 8. Docker packaging (`docker compose up --build` - see above)
 9. Backend test suite (auth flow, `LinkService` ownership/expiry/status logic)
+10. Rate limiting on auth, link creation, and redirects (Redis-backed, fails open if
+    Redis is unreachable)
 
 ## Future Enhancements
 
@@ -258,4 +264,3 @@ matching proxy routes under `frontend/app/api/**` (see [Authentication](#authent
 - Using API keys to authenticate API requests (currently only CRUD-managed, not a working auth path)
 - Admin-only endpoints (the `ADMIN` role exists but nothing checks it)
 - GeoIP enrichment for analytics (`country`/`region`/`city` are unpopulated placeholders)
-- Rate limiting and abuse prevention

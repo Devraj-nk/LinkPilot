@@ -17,6 +17,6 @@ jwt.refresh-token-expiration-days=30
 app.public-base-url=http://localhost:3000
 app.cors.allowed-origins=http://localhost:3000
 
-clickhouse.url=jdbc:clickhouse://localhost:8123/default
-clickhouse.username=default
-clickhouse.password=
+clickhouse.url=${CLICKHOUSE_URL:jdbc:clickhouse://localhost:8123/default?compress=0}
+clickhouse.username=${CLICKHOUSE_USERNAME:default}
+clickhouse.password=${CLICKHOUSE_PASSWORD:}

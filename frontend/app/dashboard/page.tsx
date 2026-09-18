@@ -197,10 +197,19 @@ export default function DashboardPage() {
             <tbody>
               {links.map((link) => (
                 <tr key={link.id} className="border-b border-gray-100">
-                  <td className="py-2 pr-4">
+                  <td className="py-2 pr-4 whitespace-nowrap">
                     <Link href={`/dashboard/links/${link.id}`} className="text-blue-600 hover:underline">
                       /{link.shortCode}
                     </Link>
+                    <a
+                      href={link.shortUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={`Open ${link.shortUrl}`}
+                      className="ml-2 text-gray-400 hover:text-blue-600"
+                    >
+                      &#8599;
+                    </a>
                   </td>
                   <td className="py-2 pr-4 max-w-xs truncate" title={link.originalUrl}>
                     {link.originalUrl}

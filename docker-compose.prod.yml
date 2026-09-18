@@ -1,0 +1,53 @@
+# Adds a Caddy reverse proxy in front of the base stack for hosting LinkPilot on a
+# real domain, with frontend and backend on the same host behind one origin - no
+# split hosting, no manually managed TLS certs.
+#
+# Usage:
+#   1. Point DOMAIN's DNS A record at this server's public IP.
+#   2. Put a .env file next to this one with:
+#        DOMAIN=links.example.com
+#        JWT_SECRET=<a real base64-encoded 256-bit value>
+#   3. docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Everything else (Redis, ClickHouse, the app services themselves) is unchanged from
+# docker-compose.yml - this file only swaps what's public-facing and what URLs the
+# services are told to use for themselves.
+
+services:
+  backend:
+    environment:
+      - APP_PUBLIC_BASE_URL=https://${DOMAIN}
+      - APP_CORS_ALLOWED_ORIGINS=https://${DOMAIN}
+    # No longer publishes 8080 to the host directly - only Caddy is internet-facing.
+    ports: []
+
+  frontend:
+    build:
+      args:
+        NEXT_PUBLIC_API_BASE_URL: https://${DOMAIN}
+    environment:
+      # Same public origin as the frontend itself - Caddy (see deploy/Caddyfile)
+      # routes /r/* and /api/* on that origin straight to the backend, so the
+      # browser-facing redirect never needs to know about the internal network.
+      PUBLIC_BACKEND_URL: https://${DOMAIN}
+    ports: []
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - frontend
+    environment:
+      - DOMAIN=${DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  caddy-data:
+  caddy-config:

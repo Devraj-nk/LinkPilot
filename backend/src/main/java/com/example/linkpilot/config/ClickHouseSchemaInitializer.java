@@ -44,6 +44,8 @@ public class ClickHouseSchemaInitializer implements ApplicationRunner {
     private void runScript(String location) throws Exception {
         Resource resource = resourceLoader.getResource(location);
         String content = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        // Splits on every literal ';', including one inside a `--` comment - keep comments
+        // in these files free of semicolons, or this silently chops a statement in two.
         for (String statement : content.split(";")) {
             String trimmed = statement.strip();
             boolean isRunnable = !trimmed.isEmpty()

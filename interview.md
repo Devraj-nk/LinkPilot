@@ -135,6 +135,28 @@ defensively at startup (logs a warning and continues rather than failing app boo
 if it can't connect) — it's optional infrastructure for a bonus feature, not a hard
 dependency for the core product.
 
+**Challenge 7 — rate limiting isn't one mechanism, it's a per-endpoint keying decision.**
+"Add a rate limiter" doesn't actually specify anything useful on its own - the real
+design question is what key each limit uses and why, and that's different per
+endpoint. *Approach:* `/api/auth/login` and `/register` have no authenticated caller
+yet, so they're keyed by IP - that's the axis credential-stuffing and registration
+spam actually happen on. `POST /api/links` is keyed by user ID instead, since the
+caller is already authenticated and the thing being guarded against is one account
+scripting mass link creation, not whatever network it happens to route through -
+user ID is also more precise than IP here, since it doesn't false-positive on a
+shared office/campus IP. The public redirect (`GET /r/{shortCode}`) is keyed by IP
+again, but for a different reason: a link going viral is expected to pull traffic
+from thousands of different IPs, so capping *the link* would be wrong - the actual
+concern is one IP hammering the redirect endpoint itself as a cheap way to point
+traffic at an arbitrary destination URL through the service. Implementation is a
+small Redis-backed fixed-window counter (`INCR` a per-window key, `EXPIRE` it on
+first use) rather than a rate-limiting library - three call sites don't justify a
+new dependency, and a fixed-window counter is simple enough to fully explain rather
+than just cite. It deliberately fails open (allows the request) on any Redis error,
+same philosophy as ClickHouse's graceful degradation in Challenge 6 - infrastructure
+that's there to protect the product should never become the thing that takes it
+down.
+
 ## 5. Results (generic, not fabricated metrics)
 
 - Full auth-to-redirect loop verified end-to-end with real HTTP requests (not just
@@ -163,6 +185,11 @@ dependency for the core product.
   proper offset-based pagination (`Page<T>`, clamped page/size params, a consistent
   `PageResponse` envelope) rather than leaving it as a known-but-ignored issue, and
   verified live against 25 seeded links that it actually splits into pages correctly.
+- Added rate limiting to the three endpoints that actually needed it - login/register
+  by IP, link creation by user, the public redirect by IP - rather than one blanket
+  global limiter, and verified each live against a running Redis: exactly the
+  configured limit passes, the next request is rejected with 429, and a different
+  user or IP is completely unaffected by another one being throttled.
 
 ## 6. Questions an interviewer is likely to ask
 
@@ -235,6 +262,19 @@ dependency for the core product.
   earlier: it's real, but it's a "will break down with real data" gap, not a
   "the feature doesn't work at all" gap like custom domains were - worth fixing, but
   correctly triaged as lower priority than the things that were actually broken.
+- **"How would you rate-limit this API - by IP or by user?"** — Depends on the
+  endpoint, and that's the actual point of the question: for `login`/`register`
+  there's no authenticated caller yet, so IP is the only axis available and the
+  right one - that's what credential-stuffing and registration spam look like. For
+  an authenticated endpoint like link creation, user ID is more precise than IP -
+  it survives shared-IP false positives (an office network shouldn't get throttled
+  because one account behind it is scripting) and targets the account actually doing
+  it. For the public redirect, IP is right again but for a different reason: the
+  resource being protected is the endpoint itself, not any one link - legitimate
+  traffic to a popular link can validly come from thousands of different IPs, so
+  capping the link would be wrong. Mechanically: a Redis `INCR`+`EXPIRE` fixed-window
+  counter, failing open if Redis is down - the same "optional infrastructure never
+  blocks the core path" pattern as ClickHouse.
 - **"Tell me about a bug you found and how you fixed it."** — the SQLite unique-
   constraint gap (Challenge 5 above) is the strongest answer available: it's a real,
   silent correctness bug the test suite caught, the first fix attempt was wrong and

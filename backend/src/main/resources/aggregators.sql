@@ -10,7 +10,7 @@ AS SELECT
     uniqExact(ip_hash) AS unique_visitors,
     countIf(device_type = 'mobile') AS mobile_views,
     countIf(device_type = 'desktop') AS desktop_views,
-    argMax(country, timestamp) AS top_country  -- Simplified; use topK for real implementation
+    argMax(country, timestamp) AS top_country  -- Simplified - use topK for real implementation
 FROM click_events
 GROUP BY link_id, date;
 

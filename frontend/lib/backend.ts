@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8080";
 
+// BACKEND_URL is used for server-to-server calls (this Next.js server calling the
+// backend directly) and can safely be an internal address, like a Docker Compose
+// service name, that only this server can resolve. Redirecting a *browser* straight
+// to the backend (the [shortCode] route does this) needs an address the browser can
+// actually reach, which may be different - hence a separate variable that falls back
+// to BACKEND_URL when they happen to be the same (plain local dev, or a reverse proxy
+// forwarding one public domain to both services under different paths).
+export const PUBLIC_BACKEND_URL = process.env.PUBLIC_BACKEND_URL ?? BACKEND_URL;
+
 const ACCESS_TOKEN_MAX_AGE = 15 * 60; // seconds, matches jwt.access-token-expiration-minutes
 const REFRESH_TOKEN_MAX_AGE = 30 * 24 * 60 * 60; // seconds, matches jwt.refresh-token-expiration-days
 
